@@ -6,6 +6,7 @@ services:
       - "3000:3000"
     environment:
       OPENSEARCH_URL: http://opensearch:9200
+      ENABLE_TRANSACTIONS_EXTENSIONS: "true"
     depends_on:
       opensearch:
         condition: service_healthy

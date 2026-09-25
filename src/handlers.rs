@@ -1,7 +1,9 @@
 // src/handlers.rs
 use crate::dto::CreateOrLinkPayload;
 use crate::links::LinkEngine;
-use crate::store::{NodeKind, Store, CATALOGS_INDEX, COLLECTIONS_INDEX, ROOT_CATALOG_ID};
+use crate::store::{
+    NodeKind, Store, CATALOGS_INDEX, COLLECTIONS_INDEX, ITEMS_INDEX, ROOT_CATALOG_ID,
+};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -10,7 +12,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use stac::{Catalog, Collection};
+use stac::{Catalog, Collection, Item};
 use stac_api::{ItemCollection, Search};
 use std::sync::Arc;
 
@@ -18,6 +20,7 @@ pub struct AppState {
     pub base_url: String,
     pub store: Store,
     pub links: LinkEngine,
+    pub enable_transactions: bool,
 }
 
 #[derive(Deserialize)]
@@ -31,6 +34,19 @@ fn parse_kind(raw: Option<&str>) -> Option<NodeKind> {
         Some("Collection") => Some(NodeKind::Collection),
         _ => None,
     }
+}
+
+/// 404 unless `collection_id` lives somewhere inside `catalog_id`'s DAG.
+async fn require_scoped_collection(
+    state: &AppState,
+    catalog_id: &str,
+    collection_id: &str,
+) -> Result<(), ApiError> {
+    let allowed = state.store.get_descendant_collections(catalog_id).await?;
+    if !allowed.contains(collection_id) {
+        return Err(ApiError::NotFound(collection_id.to_string()));
+    }
+    Ok(())
 }
 
 // --- Discovery Handlers ---
@@ -243,11 +259,7 @@ pub async fn get_scoped_collection(
     Path((catalog_id, collection_id)): Path<(String, String)>,
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, ApiError> {
-    // Scope enforcement: the collection must live inside this catalog's DAG
-    let allowed = state.store.get_descendant_collections(&catalog_id).await?;
-    if !allowed.contains(&collection_id) {
-        return Err(ApiError::NotFound(collection_id));
-    }
+    require_scoped_collection(&state, &catalog_id, &collection_id).await?;
     state
         .store
         .get_document(COLLECTIONS_INDEX, &collection_id)
@@ -298,9 +310,99 @@ pub async fn disband_catalog(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// --- Scoped Items (reads: always on; writes: ENABLE_TRANSACTIONS_EXTENSIONS) ---
+
+/// Enforce that the item's declared `collection` matches the path.
+fn validate_item_collection(
+    item: &mut Item,
+    collection_id: &str,
+) -> Result<(), ApiError> {
+    match &item.collection {
+        Some(c) if c != collection_id => Err(ApiError::BadRequest(format!(
+            "item collection '{c}' does not match path collection '{collection_id}'"
+        ))),
+        Some(_) => Ok(()),
+        None => {
+            item.collection = Some(collection_id.to_string());
+            Ok(())
+        }
+    }
+}
+
+pub async fn list_scoped_items(
+    Path((catalog_id, collection_id)): Path<(String, String)>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ItemCollection>, ApiError> {
+    require_scoped_collection(&state, &catalog_id, &collection_id).await?;
+    let (items, matched) = state
+        .store
+        .search_items(&[collection_id], 100)
+        .await?;
+    let returned = items.len() as u64;
+    let mut collection =
+        ItemCollection::new(items).map_err(|e| ApiError::Internal(e.to_string()))?;
+    collection.number_matched = Some(matched);
+    collection.number_returned = Some(returned);
+    Ok(Json(collection))
+}
+
+pub async fn get_scoped_item(
+    Path((catalog_id, collection_id, item_id)): Path<(String, String, String)>,
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_scoped_collection(&state, &catalog_id, &collection_id).await?;
+    match state.store.get_document(ITEMS_INDEX, &item_id).await? {
+        Some(doc) if doc["collection"] == collection_id => Ok(Json(doc)),
+        _ => Err(ApiError::NotFound(item_id)),
+    }
+}
+
+pub async fn create_scoped_item(
+    Path((catalog_id, collection_id)): Path<(String, String)>,
+    State(state): State<Arc<AppState>>,
+    Json(mut item): Json<Item>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_scoped_collection(&state, &catalog_id, &collection_id).await?;
+    validate_item_collection(&mut item, &collection_id)?;
+    state
+        .store
+        .index_document(ITEMS_INDEX, &item.id, &item)
+        .await?;
+    Ok((StatusCode::CREATED, Json(json!(item))))
+}
+
+pub async fn update_scoped_item(
+    Path((catalog_id, collection_id, item_id)): Path<(String, String, String)>,
+    State(state): State<Arc<AppState>>,
+    Json(mut item): Json<Item>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_scoped_collection(&state, &catalog_id, &collection_id).await?;
+    validate_item_collection(&mut item, &collection_id)?;
+    state
+        .store
+        .index_document(ITEMS_INDEX, &item_id, &item)
+        .await?;
+    Ok(Json(json!(item)))
+}
+
+pub async fn delete_scoped_item(
+    Path((catalog_id, collection_id, item_id)): Path<(String, String, String)>,
+    State(state): State<Arc<AppState>>,
+) -> Result<StatusCode, ApiError> {
+    require_scoped_collection(&state, &catalog_id, &collection_id).await?;
+    match state.store.get_document(ITEMS_INDEX, &item_id).await? {
+        Some(doc) if doc["collection"] == collection_id => {
+            state.store.delete_document(ITEMS_INDEX, &item_id).await?;
+            Ok(StatusCode::NO_CONTENT)
+        }
+        _ => Err(ApiError::NotFound(item_id)),
+    }
+}
+
 // --- Error Handling ---
 
 pub enum ApiError {
+    BadRequest(String),
     NotFound(String),
     Internal(String),
 }
@@ -314,6 +416,7 @@ impl From<opensearch::Error> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, msg) = match self {
+            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             ApiError::NotFound(id) => (StatusCode::NOT_FOUND, format!("Resource '{id}' not found")),
             ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
         };
