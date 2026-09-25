@@ -13,7 +13,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use stac::{Catalog, Collection, Item};
-use stac_api::{ItemCollection, Search};
+use stac_api::{GetSearch, ItemCollection, Search};
 use std::sync::Arc;
 
 pub struct AppState {
@@ -128,27 +128,29 @@ pub async fn get_catalog_children(
 
 // --- Scoped Item Search ---
 
-pub async fn scoped_search_post(
-    Path(catalog_id): Path<String>,
-    State(state): State<Arc<AppState>>,
-    Json(mut search): Json<Search>,
+/// Shared scoped-search pipeline: intersect the request's collections with
+/// the scope's descendants, then run the OpenSearch query.
+async fn run_scoped_search(
+    state: &AppState,
+    scope_id: &str,
+    mut search: Search,
 ) -> Result<Json<ItemCollection>, ApiError> {
     let empty = || {
         ItemCollection::new(Vec::new()).map_err(|e| ApiError::Internal(e.to_string()))
     };
 
-    // 1. Resolve all descendant collection IDs in the sub-catalog DAG
-    let allowed_collections = state.store.get_descendant_collections(&catalog_id).await?;
+    // 1. Resolve all descendant collection IDs in the scope's DAG
+    let allowed_collections = state.store.get_descendant_collections(scope_id).await?;
     if allowed_collections.is_empty() {
         return Ok(Json(empty()?));
     }
 
     // 2. Security & Intersection: Enforce scope boundaries on search payload
     if search.collections.is_empty() {
-        // No filter provided — restrict to all descendants of this catalog
+        // No filter provided — restrict to all descendants of this scope
         search.collections = allowed_collections.into_iter().collect();
     } else {
-        // Intersect requested collections with catalog's allowed descendants
+        // Intersect requested collections with allowed descendants
         search.collections.retain(|c| allowed_collections.contains(c));
         if search.collections.is_empty() {
             return Ok(Json(empty()?));
@@ -164,6 +166,40 @@ pub async fn scoped_search_post(
     collection.number_matched = Some(matched);
     collection.number_returned = Some(returned);
     Ok(Json(collection))
+}
+
+pub async fn scoped_search_post(
+    Path(catalog_id): Path<String>,
+    State(state): State<Arc<AppState>>,
+    Json(search): Json<Search>,
+) -> Result<Json<ItemCollection>, ApiError> {
+    run_scoped_search(&state, &catalog_id, search).await
+}
+
+pub async fn scoped_search_get(
+    Path(catalog_id): Path<String>,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<GetSearch>,
+) -> Result<Json<ItemCollection>, ApiError> {
+    let search = Search::try_from(params).map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    run_scoped_search(&state, &catalog_id, search).await
+}
+
+/// Search across the whole catalogs registry — equivalent to scoping to
+/// `root`, since every orphan is adopted there.
+pub async fn catalogs_search_post(
+    State(state): State<Arc<AppState>>,
+    Json(search): Json<Search>,
+) -> Result<Json<ItemCollection>, ApiError> {
+    run_scoped_search(&state, ROOT_CATALOG_ID, search).await
+}
+
+pub async fn catalogs_search_get(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<GetSearch>,
+) -> Result<Json<ItemCollection>, ApiError> {
+    let search = Search::try_from(params).map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    run_scoped_search(&state, ROOT_CATALOG_ID, search).await
 }
 
 // --- Transaction Handlers ---

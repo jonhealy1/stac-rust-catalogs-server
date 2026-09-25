@@ -1,4 +1,7 @@
 # stac-rust-catalogs-server
+
+![StacLabs](https://github.com/StacLabs/.github/raw/main/profile/staclabs-orange-banner.png)
+
 A STAC API Opensearch server built with Rust
 
 ## Contents
@@ -9,7 +12,7 @@ A STAC API Opensearch server built with Rust
 
 ## What is this?
 
-A **hybrid** of the STAC API core spec and the [multi-tenant-catalogs extension](https://github.com/stac-api-extensions/multi-tenant-catalogs): catalogs form a poly-hierarchy (a DAG — a catalog or collection can live under multiple parents), and every STAC capability is exposed *scoped* under `/catalogs/{catalog_id}` rather than only at the API root. See [API Routes](#api-routes) for the full surface.
+A **hybrid** of the STAC API core spec and the [multi-tenant-catalogs extension](https://github.com/StacLabs/multi-tenant-catalogs): catalogs form a poly-hierarchy (a DAG — a catalog or collection can live under multiple parents), and every STAC capability is exposed *scoped* under `/catalogs/{catalog_id}` rather than only at the API root. See [API Routes](#api-routes) for the full surface.
 
 The catalog DAG is stored in OpenSearch as one `{kind, parents}` document per node (`stac-hierarchy` index) — children are derived via `term` queries on `parents`, so linking a shared resource is a single-document write, and orphans are automatically adopted under `root`.
 
@@ -35,8 +38,8 @@ When unset, only the read surface is mounted and the landing page `conformsTo` o
 | GET | `/catalogs/{catalog_id}/collections/{collection_id}` | Fetch a scoped collection |
 | GET | `/catalogs/{catalog_id}/collections/{collection_id}/items` | List items in a scoped collection |
 | GET | `/catalogs/{catalog_id}/collections/{collection_id}/items/{item_id}` | Fetch a scoped item |
-| GET | `/catalogs/{catalog_id}/search` | Scoped search (GET params) — *stub* |
-| POST | `/catalogs/{catalog_id}/search` | Scoped search (`Search` body intersected with descendants) |
+| GET/POST | `/catalogs/search` | Search across the whole catalogs registry (scope = `root`) |
+| GET/POST | `/catalogs/{catalog_id}/search` | Scoped search (`Search` body intersected with descendants) |
 
 ### Transactions — require `ENABLE_TRANSACTIONS_EXTENSIONS`
 

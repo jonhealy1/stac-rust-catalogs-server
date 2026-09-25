@@ -66,6 +66,11 @@ async fn main() {
             get(get_scoped_item),
         )
         // --- Scoped Search Engine ---
+        // /catalogs/search = whole-registry scope (everything under root)
+        .route(
+            "/catalogs/search",
+            get(catalogs_search_get).post(catalogs_search_post),
+        )
         .route(
             "/catalogs/{catalog_id}/search",
             get(scoped_search_get).post(scoped_search_post),
@@ -143,9 +148,4 @@ async fn root_landing_page(State(state): State<Arc<AppState>>) -> Json<serde_jso
             { "rel": "catalogs", "type": "application/json", "href": "http://localhost:3000/catalogs", "title": "Multi-Tenant Catalogs Registry" }
         ]
     }))
-}
-
-// TODO: map STAC GET-search params (GetSearch) onto the same OpenSearch path
-async fn scoped_search_get() -> Json<serde_json::Value> {
-    Json(json!({}))
 }
