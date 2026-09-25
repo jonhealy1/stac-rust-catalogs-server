@@ -51,6 +51,33 @@ async fn require_scoped_collection(
 
 // --- Discovery Handlers ---
 
+pub async fn root_landing_page(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let mut conforms_to = vec![
+        "https://api.stacspec.org/v1.0.0/core",
+        "https://api.stacspec.org/v1.0.0/multi-tenant-catalogs",
+        "https://api.stacspec.org/v1.0.0/multi-tenant-catalogs/search",
+        "https://api.stacspec.org/v1.0.0/children",
+        "https://api.stacspec.org/v1.0.0/children#type-filter",
+    ];
+    if state.enable_transactions {
+        conforms_to.push("https://api.stacspec.org/v1.0.0/multi-tenant-catalogs/transaction");
+        conforms_to.push("https://api.stacspec.org/v1.0.0/ogcapi-features/extensions/transaction");
+    }
+    Json(json!({
+        "stac_version": "1.0.0",
+        "type": "Catalog",
+        "id": "stac-multi-tenant-root",
+        "title": "STAC API with Multi-Tenant Catalogs",
+        "conformsTo": conforms_to,
+        "links": [
+            { "rel": "self", "type": "application/json", "href": "http://localhost:3000/" },
+            { "rel": "data", "type": "application/json", "href": "http://localhost:3000/collections" },
+            { "rel": "catalogs", "type": "application/json", "href": "http://localhost:3000/catalogs", "title": "Multi-Tenant Catalogs Registry" }
+        ]
+    }))
+}
+
+
 pub async fn list_catalogs(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, ApiError> {

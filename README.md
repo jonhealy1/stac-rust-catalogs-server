@@ -86,4 +86,4 @@ cargo run     # API on http://localhost:3000
 
 Config via env vars: `OPENSEARCH_URL` (default `http://localhost:9200`), `ENABLE_TRANSACTIONS_EXTENSIONS` (enables all write endpoints; set in `compose.yml` by default).
 
-Other handy commands: `cargo check` (fast type-check, no binary), `cargo test` (unit tests), `cargo add <crate>` (add a dependency).
+Other handy commands: `cargo check` (fast type-check, no binary), `cargo test` (unit + integration tests — integration tests need OpenSearch running, and skip automatically if it's not), `cargo add <crate>` (add a dependency).
