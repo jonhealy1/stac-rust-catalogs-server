@@ -100,6 +100,16 @@ impl HierarchyIndex {
             .into_iter()
             .collect()
     }
+
+    /// Returns only the direct children of a given node
+    pub fn get_children(&self, node_id: &str) -> Vec<String> {
+        self.children
+            .get(node_id)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect()
+    }
 }
 
 #[cfg(test)]

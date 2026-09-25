@@ -123,9 +123,11 @@ pub async fn disband_catalog(
 ) -> Result<StatusCode, ApiError> {
     let mut hierarchy = state.hierarchy.write().await;
 
-    // Safety Disband: Unlink all children and auto-adopt orphans to Root
-    let descendants = hierarchy.get_descendants(&catalog_id);
-    for child in descendants {
+    // Safety Disband: Unlink direct children only and auto-adopt orphans to Root.
+    // Only direct children have `catalog_id` as an actual parent; passing a non-parent
+    // to unlink_and_adopt would be a no-op on the parent link and mis-adopt grandchildren.
+    let direct_children = hierarchy.get_children(&catalog_id);
+    for child in direct_children {
         hierarchy.unlink_and_adopt(&child, &catalog_id);
     }
 
