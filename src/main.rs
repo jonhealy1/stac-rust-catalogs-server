@@ -1,29 +1,35 @@
 // src/main.rs
 mod dto;
 mod handlers;
-mod hierarchy;
 mod links;
+mod store;
 
 use axum::{
-    http::StatusCode,
     routing::{delete, get, post},
     Json, Router,
 };
 use handlers::*;
-use hierarchy::HierarchyIndex;
 use links::LinkEngine;
 use serde_json::json;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use store::Store;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
     let base_url = "http://localhost:3000";
+    let opensearch_url =
+        std::env::var("OPENSEARCH_URL").unwrap_or_else(|_| "http://localhost:9200".to_string());
+    let store = Store::connect(&opensearch_url).expect("Failed to connect to OpenSearch");
+    store
+        .ensure_indices()
+        .await
+        .expect("Failed to create STAC indices");
+
     let state = Arc::new(AppState {
         base_url: base_url.to_string(),
-        hierarchy: RwLock::new(HierarchyIndex::new()),
+        store,
         links: LinkEngine::new(base_url),
     });
 
@@ -96,33 +102,7 @@ async fn root_landing_page() -> Json<serde_json::Value> {
     }))
 }
 
-async fn create_root_catalog() -> Json<serde_json::Value> {
-    Json(json!({}))
-}
-async fn get_catalog() -> Json<serde_json::Value> {
-    Json(json!({}))
-}
-async fn update_catalog() -> Json<serde_json::Value> {
-    Json(json!({}))
-}
-async fn unlink_sub_catalog() -> StatusCode {
-    StatusCode::NO_CONTENT
-}
-async fn list_scoped_collections() -> Json<serde_json::Value> {
-    Json(json!({}))
-}
-async fn link_or_create_scoped_collection() -> Json<serde_json::Value> {
-    Json(json!({}))
-}
-async fn get_scoped_collection() -> Json<serde_json::Value> {
-    Json(json!({}))
-}
-async fn update_scoped_collection() -> Json<serde_json::Value> {
-    Json(json!({}))
-}
-async fn unlink_scoped_collection() -> StatusCode {
-    StatusCode::NO_CONTENT
-}
+// TODO: map STAC GET-search params (GetSearch) onto the same OpenSearch path
 async fn scoped_search_get() -> Json<serde_json::Value> {
     Json(json!({}))
 }

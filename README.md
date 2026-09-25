@@ -13,7 +13,15 @@ source ~/.cargo/env
 cargo --version   # verify install
 ```
 
-**2. Build and run** — no venv needed, `cargo` resolves and downloads crates (e.g. `stac`, `stac-api`) on first build:
+**2. Start OpenSearch** — the server persists STAC docs + the catalog DAG in OpenSearch. `compose.yml` runs a single-node dev cluster plus Dashboards:
+
+```bash
+docker compose up -d          # OpenSearch on :9200, Dashboards on :5601
+```
+
+Point the server elsewhere with `OPENSEARCH_URL` (default `http://localhost:9200`).
+
+**3. Build and run** — no venv needed, `cargo` resolves and downloads crates (e.g. `stac`, `stac-api`) on first build:
 
 ```bash
 cargo build   # fetch deps + compile (like pip install -r requirements.txt)
