@@ -292,6 +292,9 @@ pub async fn disband_catalog(
     // Deleting the node's doc detaches it from all parents (children are
     // derived from `parents` lookups — no reverse cleanup needed)
     state.store.remove_node(&catalog_id).await?;
+
+    // Delete the catalog document itself (never child collections or items)
+    state.store.delete_document(CATALOGS_INDEX, &catalog_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

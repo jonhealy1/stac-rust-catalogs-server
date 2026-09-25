@@ -93,7 +93,12 @@ impl Store {
                 self.client
                     .indices()
                     .create(IndicesCreateParts::Index(index))
-                    .body(json!({ "mappings": mappings }))
+                    // 0 replicas: dev default is single-node; without this
+                    // every index sits yellow with unassigned shards.
+                    .body(json!({
+                        "settings": {"number_of_replicas": 0},
+                        "mappings": mappings
+                    }))
                     .send()
                     .await?;
             }
@@ -280,6 +285,15 @@ impl Store {
         }
         let body = resp.json::<Value>().await?;
         Ok(Some(body["_source"].clone()))
+    }
+
+    pub async fn delete_document(&self, index: &str, id: &str) -> Result<(), opensearch::Error> {
+        self.client
+            .delete(DeleteParts::IndexId(index, id))
+            .refresh(opensearch::params::Refresh::WaitFor)
+            .send()
+            .await?;
+        Ok(())
     }
 
     /// Fetch many documents by id (missing ids are skipped).
