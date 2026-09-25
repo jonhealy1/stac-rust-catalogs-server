@@ -1,4 +1,15 @@
 services:
+  api:
+    build: .
+    container_name: stac-api
+    ports:
+      - "3000:3000"
+    environment:
+      OPENSEARCH_URL: http://opensearch:9200
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
   opensearch:
     image: opensearchproject/opensearch:3.8.0
     container_name: stac-opensearch

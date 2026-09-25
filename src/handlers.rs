@@ -117,10 +117,14 @@ pub async fn scoped_search_post(
     State(state): State<Arc<AppState>>,
     Json(mut search): Json<Search>,
 ) -> Result<Json<ItemCollection>, ApiError> {
+    let empty = || {
+        ItemCollection::new(Vec::new()).map_err(|e| ApiError::Internal(e.to_string()))
+    };
+
     // 1. Resolve all descendant collection IDs in the sub-catalog DAG
     let allowed_collections = state.store.get_descendant_collections(&catalog_id).await?;
     if allowed_collections.is_empty() {
-        return Ok(Json(ItemCollection::default()));
+        return Ok(Json(empty()?));
     }
 
     // 2. Security & Intersection: Enforce scope boundaries on search payload
@@ -131,17 +135,18 @@ pub async fn scoped_search_post(
         // Intersect requested collections with catalog's allowed descendants
         search.collections.retain(|c| allowed_collections.contains(c));
         if search.collections.is_empty() {
-            return Ok(Json(ItemCollection::default()));
+            return Ok(Json(empty()?));
         }
     }
 
     // 3. Query OpenSearch using the resolved `collections` filter list
     let limit = search.items.limit.unwrap_or(100);
     let (items, matched) = state.store.search_items(&search.collections, limit).await?;
-    let mut collection = ItemCollection::default();
+    let returned = items.len() as u64;
+    let mut collection =
+        ItemCollection::new(items).map_err(|e| ApiError::Internal(e.to_string()))?;
     collection.number_matched = Some(matched);
-    collection.number_returned = Some(items.len() as u64);
-    collection.items = items;
+    collection.number_returned = Some(returned);
     Ok(Json(collection))
 }
 
