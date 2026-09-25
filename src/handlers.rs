@@ -1,6 +1,6 @@
 // src/handlers.rs
 use crate::dto::CreateOrLinkPayload;
-use crate::hierarchy::HierarchyIndex;
+use crate::hierarchy::{HierarchyIndex, NodeKind};
 use crate::links::LinkEngine;
 use axum::{
     extract::{Path, Query, State},
@@ -64,7 +64,7 @@ pub async fn scoped_search_post(
     let hierarchy = state.hierarchy.read().await;
 
     // 1. Resolve all descendant collection IDs in the sub-catalog DAG
-    let allowed_collections = hierarchy.get_descendants(&catalog_id);
+    let allowed_collections = hierarchy.get_descendant_collections(&catalog_id);
     if allowed_collections.is_empty() {
         return Ok(Json(ItemCollection::default()));
     }
@@ -99,7 +99,7 @@ pub async fn link_or_create_sub_catalog(
     match payload {
         CreateOrLinkPayload::LinkReference { id } => {
             // Mode B: Link existing sub-catalog
-            hierarchy.link(&id, &catalog_id);
+            hierarchy.link(&id, &catalog_id, NodeKind::Catalog);
             Ok((
                 StatusCode::OK,
                 Json(json!({"message": "Catalog linked successfully"})),
@@ -107,7 +107,7 @@ pub async fn link_or_create_sub_catalog(
         }
         CreateOrLinkPayload::FullResource(new_catalog) => {
             // Mode A: Create new sub-catalog
-            hierarchy.set_parents(new_catalog.id.clone(), vec![catalog_id]);
+            hierarchy.set_parents(new_catalog.id.clone(), vec![catalog_id], NodeKind::Catalog);
             // Save new_catalog to DB...
             Ok((
                 StatusCode::CREATED,
@@ -130,6 +130,9 @@ pub async fn disband_catalog(
     for child in direct_children {
         hierarchy.unlink_and_adopt(&child, &catalog_id);
     }
+
+    // Remove the catalog itself from its own parents (no adoption — it is being deleted)
+    hierarchy.remove_node(&catalog_id);
 
     // Delete catalog metadata from DB (never deletes child collections or items)
     Ok(StatusCode::NO_CONTENT)

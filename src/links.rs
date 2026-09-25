@@ -37,7 +37,7 @@ impl LinkEngine {
             .unwrap();
 
         let mut links = vec![
-            Link::self_(scoped_self.to_string()).geojson(),
+            Link::self_(scoped_self.to_string()).json(),
             Link::root(self.base_url.to_string()).json(),
             // MUST lock parent link to the contextual path for UI breadcrumbs
             Link::parent(contextual_parent.to_string()).json(),
@@ -60,7 +60,7 @@ impl LinkEngine {
                 );
                 links.push(
                     Link::new(dup_scoped_url.to_string(), "duplicate")
-                        .geojson()
+                        .json()
                         .title(format!("Duplicate path via {parent}")),
                 );
             }
