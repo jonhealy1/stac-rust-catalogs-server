@@ -1,0 +1,14 @@
+{
+  "type": "Collection",
+  "stac_version": "1.1.0",
+  "id": "sentinel-2-l2a",
+  "title": "Sentinel-2 Level-2A",
+  "description": "Sentinel-2 Level-2A bottom-of-atmosphere reflectance products.",
+  "license": "proprietary",
+  "keywords": ["sentinel-2", "boa reflectance", "copernicus", "esa"],
+  "extent": {
+    "spatial": {"bbox": [[-180.0, -56.0, 180.0, 84.0]]},
+    "temporal": {"interval": [["2015-06-23T00:00:00Z", null]]}
+  },
+  "links": []
+}

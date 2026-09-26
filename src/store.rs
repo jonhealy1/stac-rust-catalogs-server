@@ -9,7 +9,7 @@ use opensearch::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub const ROOT_CATALOG_ID: &str = "root";
 
@@ -38,6 +38,14 @@ struct HierarchyNode {
     kind: NodeKind,
     #[serde(default)]
     parents: Vec<String>,
+}
+
+/// A hierarchy node as returned by children queries (id comes from `_id`).
+#[derive(Debug)]
+pub struct ChildNode {
+    pub id: String,
+    pub kind: NodeKind,
+    pub parents: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -175,7 +183,12 @@ impl Store {
 
     /// Direct child ids of a node (reverse `term` lookup on `parents`).
     pub async fn get_children(&self, node_id: &str) -> Result<Vec<String>, opensearch::Error> {
-        self.search_children(node_id, None).await
+        Ok(self
+            .search_children(node_id, None)
+            .await?
+            .into_iter()
+            .map(|c| c.id)
+            .collect())
     }
 
     /// Direct child ids of a node filtered by kind.
@@ -184,14 +197,29 @@ impl Store {
         node_id: &str,
         kind: NodeKind,
     ) -> Result<Vec<String>, opensearch::Error> {
-        self.search_children(node_id, Some(kind)).await
+        Ok(self
+            .search_children(node_id, Some(kind))
+            .await?
+            .into_iter()
+            .map(|c| c.id)
+            .collect())
+    }
+
+    /// Direct children with kind + parents — enough to render child links
+    /// without a second round trip.
+    pub async fn get_child_nodes(
+        &self,
+        node_id: &str,
+        kind: Option<NodeKind>,
+    ) -> Result<Vec<ChildNode>, opensearch::Error> {
+        self.search_children(node_id, kind).await
     }
 
     async fn search_children(
         &self,
         node_id: &str,
         kind: Option<NodeKind>,
-    ) -> Result<Vec<String>, opensearch::Error> {
+    ) -> Result<Vec<ChildNode>, opensearch::Error> {
         let mut must = vec![json!({"term": {"parents": node_id}})];
         if let Some(kind) = kind {
             must.push(json!({"term": {"kind": kind}}));
@@ -201,12 +229,53 @@ impl Store {
             .search(SearchParts::Index(&[HIERARCHY_INDEX]))
             .body(json!({
                 "size": MAX_CHILDREN,
-                "_source": false,
                 "query": {"bool": {"must": must}}
             }))
             .send()
             .await?;
-        Ok(hit_ids(resp.json::<Value>().await?))
+        let body = resp.json::<Value>().await?;
+        Ok(body["hits"]["hits"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|hit| {
+                let node: HierarchyNode =
+                    serde_json::from_value(hit["_source"].clone()).ok()?;
+                Some(ChildNode {
+                    id: hit["_id"].as_str()?.to_string(),
+                    kind: node.kind,
+                    parents: node.parents,
+                })
+            })
+            .collect())
+    }
+
+    /// Parents of many nodes in one mget (for link rendering on lists).
+    pub async fn get_parents_many(
+        &self,
+        ids: &[String],
+    ) -> Result<HashMap<String, Vec<String>>, opensearch::Error> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let resp = self
+            .client
+            .mget(MgetParts::Index(HIERARCHY_INDEX))
+            .body(json!({"ids": ids}))
+            .send()
+            .await?;
+        let body = resp.json::<Value>().await?;
+        Ok(body["docs"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|d| d["found"] == true)
+            .filter_map(|d| {
+                let id = d["_id"].as_str()?.to_string();
+                let node: HierarchyNode = serde_json::from_value(d["_source"].clone()).ok()?;
+                Some((id, node.parents))
+            })
+            .collect())
     }
 
     /// Resolve descendant COLLECTION ids for scoped search via level-wise
@@ -375,15 +444,6 @@ impl Store {
             .await?;
         Ok(())
     }
-}
-
-fn hit_ids(body: Value) -> Vec<String> {
-    body["hits"]["hits"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|h| h["_id"].as_str().map(str::to_string))
-        .collect()
 }
 
 /// Mode B link semantics on a node's parent list: linking to a real

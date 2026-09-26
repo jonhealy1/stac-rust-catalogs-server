@@ -203,7 +203,7 @@ async fn test_disband_orphan_adoption() {
         .as_array()
         .unwrap()
         .iter()
-        .filter_map(|c| c.as_str())
+        .filter_map(|c| c["id"].as_str())
         .collect();
     assert!(children.contains(&col.as_str()));
 }

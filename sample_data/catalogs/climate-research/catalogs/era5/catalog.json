@@ -1,0 +1,8 @@
+{
+  "type": "Catalog",
+  "stac_version": "1.1.0",
+  "id": "era5",
+  "title": "ERA5 Reanalysis",
+  "description": "Sub-catalog grouping ECMWF ERA5 reanalysis collections.",
+  "links": []
+}

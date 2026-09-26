@@ -1,0 +1,22 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "id": "LC08_L2SP_047028_20230615",
+  "collection": "landsat-c2-l2",
+  "bbox": [-120.30, 36.90, -118.00, 38.20],
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[
+      [-120.30, 36.90], [-118.00, 36.90],
+      [-118.00, 38.20], [-120.30, 38.20],
+      [-120.30, 36.90]
+    ]]
+  },
+  "properties": {
+    "datetime": "2023-06-15T18:32:00Z",
+    "platform": "landsat-8",
+    "eo:cloud_cover": 4.1
+  },
+  "assets": {},
+  "links": []
+}

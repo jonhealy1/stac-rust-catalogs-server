@@ -9,6 +9,7 @@ A STAC API Opensearch server built with Rust
 - [What is this?](#what-is-this)
 - [API Routes](#api-routes)
 - [Getting Started (coming from Python?)](#getting-started-coming-from-python)
+- [Sample Data](#sample-data)
 
 ## What is this?
 
@@ -87,3 +88,26 @@ cargo run     # API on http://localhost:3000
 Config via env vars: `OPENSEARCH_URL` (default `http://localhost:9200`), `ENABLE_TRANSACTIONS_EXTENSIONS` (enables all write endpoints; set in `compose.yml` by default).
 
 Other handy commands: `cargo check` (fast type-check, no binary), `cargo test` (unit + integration tests — integration tests need OpenSearch running, and skip automatically if it's not), `cargo add <crate>` (add a dependency).
+
+## Sample Data
+
+`sample_data/` contains a demo hierarchy — folder structure mirrors the DAG:
+
+```
+earth-observation/          # root catalog
+├── landsat/                # sub-catalog
+│   └── landsat-c2-l2/      # collection + 2 items
+└── sentinel/
+    └── sentinel-2-l2a/     # collection + 2 items
+climate-research/           # root catalog
+└── era5/
+    └── era5-daily/         # collection + 2 items
+```
+
+Load it (requires `ENABLE_TRANSACTIONS_EXTENSIONS`, on by default in `compose.yml`):
+
+```bash
+python3 scripts/ingest_sample_data.py        # STAC_API_URL to override :3000
+```
+
+Then try scoped search: `POST /catalogs/earth-observation/search` returns its 4 satellite items; `POST /catalogs/search` searches the whole registry.

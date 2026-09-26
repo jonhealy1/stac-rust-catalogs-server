@@ -1,0 +1,14 @@
+{
+  "type": "Collection",
+  "stac_version": "1.1.0",
+  "id": "era5-daily",
+  "title": "ERA5 Daily Aggregates",
+  "description": "Daily aggregates of ERA5 reanalysis: 2m temperature, precipitation, and surface variables.",
+  "license": "CC-BY-4.0",
+  "keywords": ["era5", "reanalysis", "temperature", "ecmwf"],
+  "extent": {
+    "spatial": {"bbox": [[-180.0, -90.0, 180.0, 90.0]]},
+    "temporal": {"interval": [["1940-01-01T00:00:00Z", null]]}
+  },
+  "links": []
+}

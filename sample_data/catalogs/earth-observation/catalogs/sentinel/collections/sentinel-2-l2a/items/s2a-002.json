@@ -1,0 +1,22 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "id": "S2B_MSIL2A_20230715_T10SEG",
+  "collection": "sentinel-2-l2a",
+  "bbox": [-121.30, 37.30, -119.80, 38.30],
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[
+      [-121.30, 37.30], [-119.80, 37.30],
+      [-119.80, 38.30], [-121.30, 38.30],
+      [-121.30, 37.30]
+    ]]
+  },
+  "properties": {
+    "datetime": "2023-07-15T18:55:00Z",
+    "platform": "sentinel-2b",
+    "eo:cloud_cover": 0.0
+  },
+  "assets": {},
+  "links": []
+}

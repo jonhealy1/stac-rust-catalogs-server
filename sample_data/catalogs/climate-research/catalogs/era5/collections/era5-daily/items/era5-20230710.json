@@ -1,0 +1,15 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "id": "era5-daily-2023-07-10",
+  "collection": "era5-daily",
+  "geometry": null,
+  "bbox": [-180.0, -90.0, 180.0, 90.0],
+  "properties": {
+    "datetime": "2023-07-10T00:00:00Z",
+    "era5:mean_2m_temperature": 289.1,
+    "era5:total_precipitation": 0.0017
+  },
+  "assets": {},
+  "links": []
+}
